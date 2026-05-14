@@ -1,22 +1,19 @@
-# Nixpacks config — installs Chromium + deps required by puppeteer/whatsapp-web.js
-[phases.setup]
-nixPkgs = [
-  "nodejs_20",
-  "chromium",
-  "nss",
-  "freetype",
-  "harfbuzz",
-  "ca-certificates",
-  "ttf_bitstream_vera",
-  "fontconfig"
-]
-
-[phases.install]
-cmds = ["npm install --omit=dev"]
-
-[start]
-cmd = "node server.js"
-
-[variables]
-PUPPETEER_SKIP_CHROMIUM_DOWNLOAD = "true"
-PUPPETEER_EXECUTABLE_PATH = "/usr/bin/chromium"
+{
+  "name": "essential-wa-web-server",
+  "version": "1.0.0",
+  "description": "External WhatsApp Web bridge for Essential Lounge CRM",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "qrcode": "^1.5.4",
+    "qrcode-terminal": "^0.12.0",
+    "whatsapp-web.js": "^1.25.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
