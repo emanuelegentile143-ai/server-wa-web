@@ -1,11 +1,40 @@
 import express from "express";
+import pkg from "whatsapp-web.js";
+import qrcode from "qrcode-terminal";
+
+const { Client, LocalAuth } = pkg;
 
 const app = express();
 
 const PORT = process.env.PORT || 3000;
 
+const client = new Client({
+  authStrategy: new LocalAuth(),
+  puppeteer: {
+    headless: true,
+    args: [
+      "--no-sandbox",
+      "--disable-setuid-sandbox",
+      "--disable-dev-shm-usage",
+      "--disable-accelerated-2d-canvas",
+      "--disable-gpu"
+    ]
+  }
+});
+
+client.on("qr", (qr) => {
+  console.log("QR RECEIVED");
+  qrcode.generate(qr, { small: true });
+});
+
+client.on("ready", () => {
+  console.log("WhatsApp Client is ready!");
+});
+
+client.initialize();
+
 app.get("/", (req, res) => {
-  res.send("WhatsApp Railway Server Online");
+  res.send("WhatsApp Bridge Online");
 });
 
 app.listen(PORT, () => {
