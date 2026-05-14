@@ -24,13 +24,11 @@ const browser = await puppeteer.launch({
   ]
 });
 
-const wsEndpoint = browser.wsEndpoint();
-
 const client = new Client({
   authStrategy: new LocalAuth(),
   puppeteer: {
-    browserWSEndpoint: wsEndpoint
-  }
+    browserWSEndpoint: browser.wsEndpoint(),
+  },
 });
 
 client.on("qr", (qr) => {
@@ -38,14 +36,27 @@ client.on("qr", (qr) => {
   qrcode.generate(qr, { small: true });
 });
 
-client.on("ready", () => {
-  console.log("WhatsApp Client is ready!");
+client.on("ready", async () => {
+  console.log("WHATSAPP READY");
+
+  // FULL CHAT FETCH
+  const chats = await client.getChats();
+
+  console.log("CHAT TOTALI:", chats.length);
+
+  for (const chat of chats) {
+    console.log({
+      id: chat.id._serialized,
+      name: chat.name,
+      unread: chat.unreadCount,
+      archived: chat.archived,
+      isGroup: chat.isGroup,
+    });
+  }
 });
 
-client.initialize();
-
-app.get("/", (req, res) => {
-  res.send("WhatsApp Bridge Online");
+client.on("message", async (message) => {
+  console.log("NEW MESSAGE:", message.body);
 });
 
 app.post("/send-message", async (req, res) => {
@@ -55,31 +66,33 @@ app.post("/send-message", async (req, res) => {
     if (!number || !message) {
       return res.status(400).json({
         success: false,
-        error: "Numero o messaggio mancanti"
+        error: "Missing number or message",
       });
     }
 
-    const chatId = number.includes("@c.us")
-      ? number
-      : `${number}@c.us`;
+    const chatId = `${number}@c.us`;
 
     await client.sendMessage(chatId, message);
 
-    res.json({
+    return res.json({
       success: true,
-      sent_to: number
     });
-
   } catch (error) {
     console.error(error);
 
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
-      error: error.message
+      error: error.message,
     });
   }
+});
+
+app.get("/", (req, res) => {
+  res.send("WhatsApp Bridge Online");
 });
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
+
+client.initialize();
