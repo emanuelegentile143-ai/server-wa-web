@@ -1,0 +1,119 @@
+# Essential Lounge — WhatsApp Web Server (Railway-ready)
+
+External Node.js server that maintains WhatsApp Web sessions via
+[`whatsapp-web.js`](https://wwebjs.dev) and bridges them to your Supabase CRM
+through the existing edge functions:
+
+- `wa-web-ingest` — inbound messages, status updates, QR / instance status
+- `wa-web-queue-poll` — fetch outbound messages queued by the CRM
+- `wa-web-queue-ack` — confirm sent / failed for each queued job
+
+Supports **multi-instance** (one per sede), persistent `LocalAuth`, automatic
+reconnect, real-time QR via HTTP, and a small status dashboard.
+
+> ⚠️ WhatsApp Web automation violates WA TOS. Use a dedicated business number
+> at your own risk.
+
+---
+
+## 1. Local run
+
+```bash
+cp .env.example .env
+# edit .env (SUPABASE_FUNCTIONS_URL, WA_WEB_INGEST_KEY, INSTANCES, ADMIN_TOKEN)
+
+npm install
+npm start
+```
+
+Then open:
+
+- `http://localhost:3000/` — overview
+- `http://localhost:3000/qr/<instance_id>?token=<ADMIN_TOKEN>` — scan QR
+- `http://localhost:3000/status?token=<ADMIN_TOKEN>` — JSON status
+
+The QR is also printed in console on first launch.
+
+---
+
+## 2. Multi-instance / multi-sede
+
+Configure `INSTANCES` in `.env` as comma-separated `<instance_id>:<sede>`:
+
+```
+INSTANCES=montenero-main:montenero,termoli-main:termoli
+```
+
+Each instance keeps its own `LocalAuth` session under `SESSION_DIR/<instance_id>/`
+and polls the queue filtered by its `sede`.
+
+---
+
+## 3. Deploy on Railway
+
+1. Push this folder to a new GitHub repo (or use Railway's "Deploy from local").
+2. **New Project → Deploy from GitHub repo** → select repo.
+3. Railway auto-detects **Nixpacks** (`nixpacks.toml` installs Chromium + Node 20).
+   - Alternatively delete `nixpacks.toml` and Railway will use the included
+     `Dockerfile`.
+4. **Variables** (Settings → Variables) — copy from `.env.example`:
+   - `SUPABASE_FUNCTIONS_URL` = `https://vxoyeupdgzhnrircuzjl.supabase.co/functions/v1`
+   - `WA_WEB_INGEST_KEY` = same value as the Supabase secret
+   - `INSTANCES` = e.g. `montenero-main:montenero,termoli-main:termoli`
+   - `ADMIN_TOKEN` = a long random string
+   - `SESSION_DIR` = `/data/wwebjs_auth`
+   - `POLL_INTERVAL_MS` = `4000`
+5. **Add a Volume** (Settings → Volumes): mount path `/data` — this persists the
+   WhatsApp session across redeploys (otherwise you'll re-scan the QR every time).
+6. Deploy. Open the public URL → `/qr/<instance_id>?token=<ADMIN_TOKEN>` and scan.
+
+Railway sets `PORT` automatically; the server respects it.
+
+---
+
+## 4. HTTP endpoints
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/` | Overview |
+| GET | `/health` | Liveness probe |
+| GET | `/status` | JSON status of all instances (auth) |
+| GET | `/qr/:instance_id` | HTML page with the live QR (auth) |
+| POST | `/restart/:instance_id` | Destroy + reboot one instance (auth) |
+
+Auth: pass `?token=<ADMIN_TOKEN>` or header `x-admin-token`. If `ADMIN_TOKEN`
+is empty, endpoints are open (NOT recommended in production).
+
+---
+
+## 5. How it talks to Supabase
+
+All three endpoints use header `x-ingest-key: $WA_WEB_INGEST_KEY`.
+
+- **Inbound** (`message`, `message_create`, `message_ack`, instance status,
+  QR) → `POST /wa-web-ingest`
+- **Outbound worker** (every `POLL_INTERVAL_MS` per instance):
+  1. `POST /wa-web-queue-poll?sede=<sede>&limit=10` → list of `{ id, payload_json }`
+  2. `client.sendMessage(payload_json.wa_chat_id, payload_json.body)`
+  3. `POST /wa-web-queue-ack` with `{ id, status: 'sent'|'failed', wa_message_id?, error? }`
+
+No CRM/frontend changes are required — these endpoints already exist in your
+Supabase project.
+
+---
+
+## 6. Troubleshooting
+
+- **`Failed to launch the browser process`** — the Nixpacks/Docker image
+  installs Chromium and exposes it via `PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium`.
+  If you swap base images, install Chromium and set that env var.
+- **QR page is blank / "No QR available"** — instance is already authenticated,
+  or still booting. Refresh in a few seconds; check `/status`.
+- **Re-scan QR after every redeploy** — you forgot to mount a persistent volume
+  on `SESSION_DIR`. On Railway: Settings → Volumes → `/data`, then set
+  `SESSION_DIR=/data/wwebjs_auth`.
+- **Outbound messages stuck in `queued`** — check that the instance status is
+  `connected` and that `sede` in `INSTANCES` matches the `sede` of the queued
+  rows in `wa_queue`.
+- **Auth failure loop** — delete the instance folder under `SESSION_DIR` and
+  re-scan: `POST /restart/<instance_id>?token=...`.

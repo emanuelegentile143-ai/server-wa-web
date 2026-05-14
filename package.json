@@ -1,0 +1,22 @@
+# Nixpacks config — installs Chromium + deps required by puppeteer/whatsapp-web.js
+[phases.setup]
+nixPkgs = [
+  "nodejs_20",
+  "chromium",
+  "nss",
+  "freetype",
+  "harfbuzz",
+  "ca-certificates",
+  "ttf_bitstream_vera",
+  "fontconfig"
+]
+
+[phases.install]
+cmds = ["npm install --omit=dev"]
+
+[start]
+cmd = "node server.js"
+
+[variables]
+PUPPETEER_SKIP_CHROMIUM_DOWNLOAD = "true"
+PUPPETEER_EXECUTABLE_PATH = "/usr/bin/chromium"
