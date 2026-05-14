@@ -1,23 +1,23 @@
 import express from "express";
 import pkg from "whatsapp-web.js";
-import QRCode from "qrcode";
+import qrcode from "qrcode-terminal";
 import puppeteer from "puppeteer";
 
 const { Client, LocalAuth } = pkg;
 
 const app = express();
 
-const PORT = process.env.PORT || 8080;
+app.use(express.json());
 
-let latestQr = null;
+const PORT = process.env.PORT || 8080;
 
 const browser = await puppeteer.launch({
   headless: true,
-  executablePath: process.env.PUPPETEER_EXECUTABLE_PATH,
   args: [
     "--no-sandbox",
     "--disable-setuid-sandbox",
     "--disable-dev-shm-usage",
+    "--disable-accelerated-2d-canvas",
     "--disable-gpu",
     "--single-process",
     "--no-zygote"
@@ -33,30 +33,50 @@ const client = new Client({
   }
 });
 
-client.on("qr", async (qr) => {
+client.on("qr", (qr) => {
   console.log("QR RECEIVED");
-  latestQr = await QRCode.toDataURL(qr);
+  qrcode.generate(qr, { small: true });
 });
 
 client.on("ready", () => {
   console.log("WhatsApp Client is ready!");
-  latestQr = null;
 });
 
 client.initialize();
 
 app.get("/", (req, res) => {
-  if (latestQr) {
-    res.send(`
-      <html>
-        <body style="display:flex;justify-content:center;align-items:center;height:100vh;background:#111;color:white;font-family:sans-serif;flex-direction:column;">
-          <h2>Scan WhatsApp QR</h2>
-          <img src="${latestQr}" width="350" />
-        </body>
-      </html>
-    `);
-  } else {
-    res.send("WhatsApp Bridge Online");
+  res.send("WhatsApp Bridge Online");
+});
+
+app.post("/send-message", async (req, res) => {
+  try {
+    const { number, message } = req.body;
+
+    if (!number || !message) {
+      return res.status(400).json({
+        success: false,
+        error: "Numero o messaggio mancanti"
+      });
+    }
+
+    const chatId = number.includes("@c.us")
+      ? number
+      : `${number}@c.us`;
+
+    await client.sendMessage(chatId, message);
+
+    res.json({
+      success: true,
+      sent_to: number
+    });
+
+  } catch (error) {
+    console.error(error);
+
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
   }
 });
 
