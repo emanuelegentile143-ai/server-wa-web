@@ -10,8 +10,11 @@ const PORT = process.env.PORT || 3000;
 
 const client = new Client({
   authStrategy: new LocalAuth(),
+
   puppeteer: {
+    executablePath: "/usr/bin/chromium",
     headless: true,
+
     args: [
       "--no-sandbox",
       "--disable-setuid-sandbox",
@@ -29,6 +32,18 @@ client.on("qr", (qr) => {
 
 client.on("ready", () => {
   console.log("WhatsApp Client is ready!");
+});
+
+client.on("authenticated", () => {
+  console.log("WhatsApp authenticated!");
+});
+
+client.on("auth_failure", (msg) => {
+  console.error("AUTH FAILURE", msg);
+});
+
+client.on("disconnected", (reason) => {
+  console.log("WhatsApp disconnected:", reason);
 });
 
 client.initialize();
