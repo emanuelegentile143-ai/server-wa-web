@@ -1,27 +1,33 @@
 import express from "express";
 import pkg from "whatsapp-web.js";
 import qrcode from "qrcode-terminal";
+import puppeteer from "puppeteer";
 
 const { Client, LocalAuth } = pkg;
 
 const app = express();
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 8080;
+
+const browser = await puppeteer.launch({
+  headless: true,
+  args: [
+    "--no-sandbox",
+    "--disable-setuid-sandbox",
+    "--disable-dev-shm-usage",
+    "--disable-accelerated-2d-canvas",
+    "--disable-gpu",
+    "--single-process",
+    "--no-zygote"
+  ]
+});
+
+const wsEndpoint = browser.wsEndpoint();
 
 const client = new Client({
   authStrategy: new LocalAuth(),
-
   puppeteer: {
-    executablePath: "/usr/bin/chromium",
-    headless: true,
-
-    args: [
-      "--no-sandbox",
-      "--disable-setuid-sandbox",
-      "--disable-dev-shm-usage",
-      "--disable-accelerated-2d-canvas",
-      "--disable-gpu"
-    ]
+    browserWSEndpoint: wsEndpoint
   }
 });
 
@@ -32,18 +38,6 @@ client.on("qr", (qr) => {
 
 client.on("ready", () => {
   console.log("WhatsApp Client is ready!");
-});
-
-client.on("authenticated", () => {
-  console.log("WhatsApp authenticated!");
-});
-
-client.on("auth_failure", (msg) => {
-  console.error("AUTH FAILURE", msg);
-});
-
-client.on("disconnected", (reason) => {
-  console.log("WhatsApp disconnected:", reason);
 });
 
 client.initialize();
