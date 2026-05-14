@@ -1,6 +1,7 @@
 import express from "express";
 import pkg from "whatsapp-web.js";
 import qrcode from "qrcode-terminal";
+import qr from "qrcode";
 import puppeteer from "puppeteer";
 
 const { Client, LocalAuth } = pkg;
@@ -10,6 +11,8 @@ const app = express();
 app.use(express.json());
 
 const PORT = process.env.PORT || 8080;
+
+let qrCodeData = null;
 
 const browser = await puppeteer.launch({
   headless: true,
@@ -31,15 +34,17 @@ const client = new Client({
   },
 });
 
-client.on("qr", (qr) => {
+client.on("qr", async (qrData) => {
   console.log("QR RECEIVED");
-  qrcode.generate(qr, { small: true });
+
+  qrCodeData = qrData;
+
+  qrcode.generate(qrData, { small: true });
 });
 
 client.on("ready", async () => {
   console.log("WHATSAPP READY");
 
-  // FULL CHAT FETCH
   const chats = await client.getChats();
 
   console.log("CHAT TOTALI:", chats.length);
@@ -89,6 +94,22 @@ app.post("/send-message", async (req, res) => {
 
 app.get("/", (req, res) => {
   res.send("WhatsApp Bridge Online");
+});
+
+app.get("/qr", async (req, res) => {
+  if (!qrCodeData) {
+    return res.send("QR non disponibile");
+  }
+
+  const image = await qr.toDataURL(qrCodeData);
+
+  res.send(`
+    <html>
+      <body style="display:flex;justify-content:center;align-items:center;height:100vh;background:#111;">
+        <img src="${image}" />
+      </body>
+    </html>
+  `);
 });
 
 app.listen(PORT, () => {
