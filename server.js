@@ -1,119 +1,42 @@
-import express from "express";
-import pkg from "whatsapp-web.js";
-import qrcode from "qrcode-terminal";
-import qr from "qrcode";
-import puppeteer from "puppeteer";
-
-const { Client, LocalAuth } = pkg;
-
-const app = express();
-
-app.use(express.json());
-
-const PORT = process.env.PORT || 8080;
-
-let qrCodeData = null;
-
-const browser = await puppeteer.launch({
-  headless: true,
-  args: [
-    "--no-sandbox",
-    "--disable-setuid-sandbox",
-    "--disable-dev-shm-usage",
-    "--disable-accelerated-2d-canvas",
-    "--disable-gpu",
-    "--single-process",
-    "--no-zygote"
-  ]
-});
-
-const client = new Client({
-  authStrategy: new LocalAuth(),
-  puppeteer: {
-    browserWSEndpoint: browser.wsEndpoint(),
-  },
-});
-
-client.on("qr", async (qrData) => {
-  console.log("QR RECEIVED");
-
-  qrCodeData = qrData;
-
-  qrcode.generate(qrData, { small: true });
-});
-
-client.on("ready", async () => {
-  console.log("WHATSAPP READY");
-
-  const chats = await client.getChats();
-
-  console.log("CHAT TOTALI:", chats.length);
-
-  for (const chat of chats) {
-    console.log({
-      id: chat.id._serialized,
-      name: chat.name,
-      unread: chat.unreadCount,
-      archived: chat.archived,
-      isGroup: chat.isGroup,
-    });
-  }
-});
-
-client.on("message", async (message) => {
-  console.log("NEW MESSAGE:", message.body);
-});
-
-app.post("/send-message", async (req, res) => {
+client.on("message", async (msg) => {
   try {
-    const { number, message } = req.body;
+    if (!msg.from.endsWith("@c.us")) return;
 
-    if (!number || !message) {
-      return res.status(400).json({
-        success: false,
-        error: "Missing number or message",
-      });
-    }
+    const contact = await msg.getContact();
 
-    const chatId = `${number}@c.us`;
+    const payload = {
+      type: "message_in",
+      instance_id: "essential_main",
+      sede: "montenero",
+      wa_chat_id: msg.from,
+      wa_message_id: msg.id._serialized,
+      from: msg.from,
+      body: msg.body || "",
+      timestamp: new Date().toISOString(),
+      contact_name:
+        contact.pushname ||
+        contact.name ||
+        contact.number ||
+        "Unknown",
+      contact_phone: `+${contact.number}`,
+    };
 
-    await client.sendMessage(chatId, message);
+    console.log("INGEST PAYLOAD:", payload);
 
-    return res.json({
-      success: true,
-    });
-  } catch (error) {
-    console.error(error);
+    await fetch(
+      "https://vxoyeupdgzhnrircuzjl.supabase.co/functions/v1/wa-web-ingest",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-ingest-key": process.env.WA_WEB_INGEST_KEY,
+        },
+        body: JSON.stringify(payload),
+      }
+    );
 
-    return res.status(500).json({
-      success: false,
-      error: error.message,
-    });
+    console.log("MESSAGE SENT TO SUPABASE");
+  } catch (err) {
+    console.error("INGEST ERROR:", err);
   }
 });
-
-app.get("/", (req, res) => {
-  res.send("WhatsApp Bridge Online");
-});
-
-app.get("/qr", async (req, res) => {
-  if (!qrCodeData) {
-    return res.send("QR non disponibile");
-  }
-
-  const image = await qr.toDataURL(qrCodeData);
-
-  res.send(`
-    <html>
-      <body style="display:flex;justify-content:center;align-items:center;height:100vh;background:#111;">
-        <img src="${image}" />
-      </body>
-    </html>
-  `);
-});
-
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
-
-client.initialize();
