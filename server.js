@@ -12,6 +12,11 @@ const PORT = process.env.PORT || 8080;
 
 let qrCodeData = null;
 
+const SUPABASE_INGEST_URL =
+  "https://vxoyeupdgzhnrircuzjl.supabase.co/functions/v1/wa-web-ingest";
+
+const INGEST_KEY = "ESSENTIAL_WA_SECRET";
+
 const client = new Client({
   authStrategy: new LocalAuth(),
   puppeteer: {
@@ -32,12 +37,49 @@ client.on("qr", async (qr) => {
   qrCodeData = await qrcode.toDataURL(qr);
 });
 
-client.on("ready", () => {
+client.on("ready", async () => {
   console.log("WHATSAPP READY");
+
+  await fetch(SUPABASE_INGEST_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-ingest-key": INGEST_KEY,
+    },
+    body: JSON.stringify({
+      type: "instance_status",
+      instance_id: "essential_main",
+      status: "connected",
+    }),
+  });
 });
 
 client.on("message", async (msg) => {
   console.log("NEW MESSAGE:", msg.body);
+
+  try {
+    await fetch(SUPABASE_INGEST_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-ingest-key": INGEST_KEY,
+      },
+      body: JSON.stringify({
+        type: "message_in",
+        instance_id: "essential_main",
+        wa_chat_id: msg.from,
+        wa_message_id: msg.id.id,
+        from: msg.from,
+        body: msg.body,
+        timestamp: new Date().toISOString(),
+        contact_name: msg._data.notifyName || null,
+      }),
+    });
+
+    console.log("MESSAGE SENT TO SUPABASE");
+  } catch (err) {
+    console.error("SUPABASE INGEST ERROR", err);
+  }
 });
 
 app.get("/", (req, res) => {
