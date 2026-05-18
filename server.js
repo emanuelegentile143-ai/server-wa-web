@@ -1,7 +1,6 @@
 import express from "express";
 import pkg from "whatsapp-web.js";
 import qrcode from "qrcode";
-import puppeteer from "puppeteer";
 
 const { Client, LocalAuth } = pkg;
 
@@ -13,21 +12,17 @@ const PORT = process.env.PORT || 8080;
 
 let qrCodeData = null;
 
-const browser = await puppeteer.launch({
-  headless: true,
-  args: [
-    "--no-sandbox",
-    "--disable-setuid-sandbox",
-    "--disable-dev-shm-usage",
-    "--disable-accelerated-2d-canvas",
-    "--disable-gpu",
-  ],
-});
-
 const client = new Client({
   authStrategy: new LocalAuth(),
   puppeteer: {
-    browser,
+    headless: true,
+    args: [
+      "--no-sandbox",
+      "--disable-setuid-sandbox",
+      "--disable-dev-shm-usage",
+      "--disable-accelerated-2d-canvas",
+      "--disable-gpu",
+    ],
   },
 });
 
@@ -85,16 +80,31 @@ app.get("/qr", (req, res) => {
           padding:30px;
           border-radius:24px;
           text-align:center;
+          box-shadow:0 0 40px rgba(0,0,0,0.5);
         ">
 
-          <h1 style="color:#111;">
+          <h1 style="
+            color:#111;
+            margin-bottom:20px;
+          ">
             Collega WhatsApp
           </h1>
 
           <img
             src="${qrCodeData}"
             width="320"
+            style="
+              border-radius:12px;
+            "
           />
+
+          <p style="
+            margin-top:20px;
+            color:#666;
+            font-size:14px;
+          ">
+            WhatsApp → Dispositivi collegati → Collega dispositivo
+          </p>
 
         </div>
 
