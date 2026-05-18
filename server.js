@@ -52,21 +52,15 @@ app.get("/", (req, res) => {
 app.get("/qr", (req, res) => {
   if (!qrCodeData) {
     return res.send(`
-      <!DOCTYPE html>
       <html>
-        <head>
-          <title>WhatsApp QR</title>
-        </head>
-
         <body style="
-          margin:0;
           background:#111;
           color:white;
           display:flex;
           justify-content:center;
           align-items:center;
           height:100vh;
-          font-family:Arial,sans-serif;
+          font-family:Arial;
         ">
           <h1>QR non disponibile...</h1>
         </body>
@@ -75,12 +69,7 @@ app.get("/qr", (req, res) => {
   }
 
   return res.send(`
-    <!DOCTYPE html>
     <html>
-      <head>
-        <title>WhatsApp QR</title>
-      </head>
-
       <body style="
         margin:0;
         background:#111;
@@ -88,7 +77,7 @@ app.get("/qr", (req, res) => {
         justify-content:center;
         align-items:center;
         height:100vh;
-        font-family:Arial,sans-serif;
+        font-family:Arial;
       ">
 
         <div style="
@@ -96,33 +85,16 @@ app.get("/qr", (req, res) => {
           padding:30px;
           border-radius:24px;
           text-align:center;
-          box-shadow:0 0 40px rgba(0,0,0,0.5);
         ">
 
-          <h1 style="
-            margin-top:0;
-            margin-bottom:20px;
-            color:#111;
-          ">
+          <h1 style="color:#111;">
             Collega WhatsApp
           </h1>
 
           <img
             src="${qrCodeData}"
             width="320"
-            height="320"
-            style="
-              border-radius:12px;
-            "
           />
-
-          <p style="
-            margin-top:20px;
-            color:#666;
-            font-size:14px;
-          ">
-            WhatsApp → Dispositivi collegati → Collega dispositivo
-          </p>
 
         </div>
 
